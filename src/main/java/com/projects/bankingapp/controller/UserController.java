@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.projects.bankingapp.dto.BankResponse;
 import com.projects.bankingapp.dto.CreditDebitRequest;
 import com.projects.bankingapp.dto.EnquiryRequest;
+import com.projects.bankingapp.dto.TransferRequest;
 import com.projects.bankingapp.dto.UserInfo;
 import com.projects.bankingapp.service.UserService;
 
@@ -43,5 +44,10 @@ public class UserController {
   @PostMapping("/debit")
   public BankResponse debitAccount(@RequestBody CreditDebitRequest request) {
     return userService.debitAccount(request);
+  }
+  
+  @PostMapping("/transfer")
+  public BankResponse transger(@RequestBody TransferRequest request) {
+    return userService.transfer(request);
   }
 }
