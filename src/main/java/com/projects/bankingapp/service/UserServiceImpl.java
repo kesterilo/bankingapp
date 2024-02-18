@@ -10,6 +10,7 @@ import com.projects.bankingapp.dto.BankResponse;
 import com.projects.bankingapp.dto.CreditDebitRequest;
 import com.projects.bankingapp.dto.EmailDetails;
 import com.projects.bankingapp.dto.EnquiryRequest;
+import com.projects.bankingapp.dto.TransactionDto;
 import com.projects.bankingapp.dto.TransferRequest;
 import com.projects.bankingapp.dto.UserInfo;
 import com.projects.bankingapp.entity.User;
@@ -24,6 +25,9 @@ public class UserServiceImpl implements UserService {
   
   @Autowired
   EmailService emailService;
+  
+  @Autowired
+  TransactionService transactionService;
 
   @Override
   public BankResponse createAccount(UserInfo userInfo) {
@@ -126,6 +130,15 @@ public class UserServiceImpl implements UserService {
     user.setAccountBalance(user.getAccountBalance().add(request.getAmount()));
     userRepository.save(user);
     
+    //Save transaction    
+    TransactionDto transactionDto = TransactionDto.builder()
+        .accountNumber(user.getAccountNumber())
+        .transactionType("CREDIT")
+        .amount(request.getAmount())
+        .build();
+        
+    transactionService.saveTransaction(transactionDto);    
+    
     return BankResponse.builder()
         .responseCode(AccountUtils.ACCOUNT_CREDITED_SUCCESS)
         .responseMessage(AccountUtils.ACCOUNT_CREDITED_SUCCESS_MESSAGE)
@@ -159,6 +172,13 @@ public class UserServiceImpl implements UserService {
     else {
       user.setAccountBalance(user.getAccountBalance().subtract(request.getAmount()));
       userRepository.save(user);
+      //Save transaction    
+      TransactionDto transactionDto = TransactionDto.builder()
+        .accountNumber(user.getAccountNumber())
+        .transactionType("DEBIT")
+        .amount(request.getAmount())
+        .build();
+      transactionService.saveTransaction(transactionDto);
       return BankResponse.builder()
           .responseCode(AccountUtils.ACCOUNT_DEBITED_SUCCESS)
           .responseMessage(AccountUtils.ACCOUNT_DEBITED_MESSAGE)
@@ -211,6 +231,14 @@ public class UserServiceImpl implements UserService {
         .messageBody("You have received the sum of N" + request.getAmount() + " from " + user.getFirstName() + " " + user.getLastName() + " " + user.getOtherName() + ". \n" + "Your current balance is N" + receivingUser.getAccountBalance())
         .build();
     emailService.sendEmailAlert(creditAlert);
+    
+    TransactionDto transactionDto = TransactionDto.builder()
+        .accountNumber(user.getAccountNumber())
+        .transactionType("DEBIT")
+        .amount(request.getAmount())
+        .build();
+        
+    transactionService.saveTransaction(transactionDto);    
     
     return BankResponse.builder()
         .responseCode(AccountUtils.TRANSFER_SUCCESSFUL_CODE)
