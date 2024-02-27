@@ -109,23 +109,13 @@ public class BankStatement {
       statementInfoTable.addCell(endDateCell);
       statementInfoTable.addCell(customerNameCell);
       statementInfoTable.addCell(spaceCell);
-      statementInfoTable.addCell(bankAddressCell);
+      statementInfoTable.addCell(customerAddressCell);
       
       document.add(bankInfoTable);
       document.add(statementInfoTable);
       document.add(transactionsTable);
       
       document.close();
-      
-      EmailDetails emailDetails = EmailDetails.builder()
-          .recipient(user.getEmail())
-          .subject("STATEMENT OF ACCOUNT")
-          .messageBody("Kindly find you requested account statement attached")
-          .attachment(FILE)
-          .build();
-          
-      emailService.sendEmailWithAttachment(emailDetails);  
-      
     }
   }
   
@@ -135,6 +125,7 @@ public class BankStatement {
   
   public List<Transaction> generateStatement(String accountNumber, String startDate, String endDate)
       throws DocumentException, FileNotFoundException {
+    User user = userRepository.findByAccountNumber(accountNumber);    
     LocalDate startLocalDate = LocalDate.parse(startDate, DateTimeFormatter.ISO_DATE);
     LocalDate endLocalDate = LocalDate.parse(endDate, DateTimeFormatter.ISO_DATE);
     List<Transaction> transactionList = transactionRepository.findAll().stream()
@@ -145,7 +136,17 @@ public class BankStatement {
             transaction -> transaction.getCreatedAt().isBefore(endLocalDate))
         .toList();
         
-    getDesigner().designStatement(transactionList, accountNumber, startDate, endDate);      
+    getDesigner().designStatement(transactionList, accountNumber, startDate, endDate);
+    
+          
+    EmailDetails emailDetails = EmailDetails.builder()
+        .recipient(user.getEmail())
+        .subject("STATEMENT OF ACCOUNT")
+        .messageBody("Kindly find your requested account statement attached")
+        .attachment(FILE)
+        .build();
+          
+      emailService.sendEmailWithAttachment(emailDetails);
 
     return transactionList;
   }

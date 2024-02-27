@@ -3,16 +3,23 @@ package com.projects.bankingapp.service;
 import java.math.BigDecimal;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.projects.bankingapp.config.JwtTokenProvider;
 import com.projects.bankingapp.dto.AccountInfo;
 import com.projects.bankingapp.dto.BankResponse;
 import com.projects.bankingapp.dto.CreditDebitRequest;
 import com.projects.bankingapp.dto.EmailDetails;
 import com.projects.bankingapp.dto.EnquiryRequest;
+import com.projects.bankingapp.dto.LoginDto;
 import com.projects.bankingapp.dto.TransactionDto;
 import com.projects.bankingapp.dto.TransferRequest;
 import com.projects.bankingapp.dto.UserInfo;
+import com.projects.bankingapp.entity.Role;
 import com.projects.bankingapp.entity.User;
 import com.projects.bankingapp.repository.UserRepository;
 import com.projects.bankingapp.utils.AccountUtils;
@@ -28,6 +35,15 @@ public class UserServiceImpl implements UserService {
   
   @Autowired
   TransactionService transactionService;
+  
+  @Autowired
+  PasswordEncoder passwordEncoder;
+  
+  @Autowired
+  AuthenticationManager authenticationManager;
+  
+  @Autowired
+  JwtTokenProvider jwtTokenProvider;
 
   @Override
   public BankResponse createAccount(UserInfo userInfo) {
@@ -35,7 +51,7 @@ public class UserServiceImpl implements UserService {
      * creating an account - saving a new user into the db
      * check if user already has an account
      */
-    
+
     if (userRepository.existsByEmail(userInfo.getEmail())) {
       BankResponse response = BankResponse.builder()
           .responseCode(AccountUtils.ACCOUNT_EXISTS_CODE)
@@ -44,39 +60,57 @@ public class UserServiceImpl implements UserService {
           .build();
       return response;
     }
-    
+
     User newUser = User.builder()
-          .firstName(userInfo.getFirstName())
-          .lastName(userInfo.getLastName())
-          .otherName(userInfo.getOtherName())
-          .gender(userInfo.getGender())
-          .address(userInfo.getAddress())
-          .stateOfOrigin(userInfo.getStateOfOrigin())
-          .accountNumber(AccountUtils.generateAccountNumber())
-          .accountBalance(BigDecimal.ZERO)
-          .email(userInfo.getEmail())
-          .phoneNumber(userInfo.getPhoneNumber())
-          .alternativePhoneNumber(userInfo.getAlternativePhoneNumber())
-          .status("ACTIVE")
+        .firstName(userInfo.getFirstName())
+        .lastName(userInfo.getLastName())
+        .otherName(userInfo.getOtherName())
+        .gender(userInfo.getGender())
+        .address(userInfo.getAddress())
+        .stateOfOrigin(userInfo.getStateOfOrigin())
+        .accountNumber(AccountUtils.generateAccountNumber())
+        .accountBalance(BigDecimal.ZERO)
+        .email(userInfo.getEmail())
+        .password(passwordEncoder.encode(userInfo.getPassword()))
+        .phoneNumber(userInfo.getPhoneNumber())
+        .alternativePhoneNumber(userInfo.getAlternativePhoneNumber())
+        .status("ACTIVE")
+        .role(userInfo.getRole())
         .build();
-          
+
     User savedUser = userRepository.save(newUser);
     EmailDetails emailDetails = EmailDetails.builder()
         .recipient(savedUser.getEmail())
         .subject("ACCOUNT CREATION")
-        .messageBody("Congratulations! Your Account has been successfully created.\n Your Account .Details: \nAccount Name: " + savedUser.getFirstName() + " " + savedUser.getLastName() + " " + savedUser.getOtherName() + 
-                  "\nAccount Number: " + savedUser.getAccountNumber()
-                  )
+        .messageBody(
+            "Congratulations! Your Account has been successfully created.\nYour Account Details: \nAccount Name: "
+                + savedUser.getFirstName() + " " + savedUser.getLastName() + " " + savedUser.getOtherName() +
+                "\nAccount Number: " + savedUser.getAccountNumber())
         .build();
     emailService.sendEmailAlert(emailDetails);
     return BankResponse.builder()
-          .responseCode(AccountUtils.ACCOUNT_CREATION_SUCCESS)
-          .responseMessage(AccountUtils.ACCOUNT_CREATION_MESSAGE)
-          .accountInfo(AccountInfo.builder()
-                    .accountBalance(savedUser.getAccountBalance())    
-                    .accountNumber(savedUser.getAccountNumber())
-                    .accountName(savedUser.getFirstName() + " " + savedUser.getLastName() + " " + savedUser.getOtherName())
-                    .build())
+        .responseCode(AccountUtils.ACCOUNT_CREATION_SUCCESS)
+        .responseMessage(AccountUtils.ACCOUNT_CREATION_MESSAGE)
+        .accountInfo(AccountInfo.builder()
+            .accountBalance(savedUser.getAccountBalance())
+            .accountNumber(savedUser.getAccountNumber())
+            .accountName(savedUser.getFirstName() + " " + savedUser.getLastName() + " " + savedUser.getOtherName())
+            .build())
+        .build();
+  }
+  
+  public BankResponse login(LoginDto loginDto) {
+    Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(loginDto.getEmail(), loginDto.getPassword()));
+    EmailDetails loginAlert = EmailDetails.builder()
+        .subject("Your Account has been logged into")
+        .recipient(loginDto.getEmail())
+        .messageBody("You logged into your Account. If you did initiate this transaction please contact your Bank immediately.")
+        .build();
+        
+    emailService.sendEmailAlert(loginAlert);
+    return BankResponse.builder()    
+        .responseCode("Login Success")
+        .responseMessage(jwtTokenProvider.generateToken(authentication))
         .build();
   }
 
@@ -221,7 +255,7 @@ public class UserServiceImpl implements UserService {
     EmailDetails debitAlert = EmailDetails.builder()
         .subject("DEBIT ALERT")
         .recipient(user.getEmail())
-        .messageBody("You sent the sum of N" + request.getAmount() + " to " + receivingUser.getFirstName() + " " + receivingUser.getLastName() + " " + receivingUser.getOtherName() + ".\n " + "The sum of N" + request.getAmount() + " has been deducted from your account.\nYour current balance is N" + user.getAccountBalance())
+        .messageBody("You sent the sum of N" + request.getAmount() + " to " + receivingUser.getFirstName() + " " + receivingUser.getLastName() + " " + receivingUser.getOtherName() + ".\n" + "The sum of N" + request.getAmount() + " has been deducted from your account.\nYour current balance is N" + user.getAccountBalance())
         .build();
     emailService.sendEmailAlert(debitAlert);
     
